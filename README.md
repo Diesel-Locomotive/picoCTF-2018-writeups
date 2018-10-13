@@ -6,6 +6,7 @@
 ## Problems
 ### Cake
 For this problem we are given a binary file and a libc file. The first step to solving this problem is to reverse the binary file and try to get an understanding of what is going on. Upon doing this, we get the following C pseudocode of what's going on:
+<details><summary>Cake Source Pseudocode</summary>
 ```C
 struct shop {
     size_t money; // offset 0
@@ -83,3 +84,4 @@ void main() {
     }
 }
 ```
+</details>
