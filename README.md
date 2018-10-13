@@ -5,7 +5,9 @@
 
 ## Problems
 ### Cake
+##### Understanding the problem
 For this problem we are given a binary file and a libc file. The first step to solving this problem is to reverse the binary file and try to get an understanding of what is going on. Upon doing this, we get the following C pseudocode of what's going on:
+
 <details><summary>Cake Source Pseudocode</summary>
 
 ```C
@@ -105,4 +107,6 @@ void serve(struct shop* shop) {
 }
 ```
 
-we see that the cake we serve is freed but we still have access to it in the cakes array stored in our shop struct.
+we see that the cake we serve is freed but we still have access to it in the cakes array stored in our shop struct. How can we exploit this? Well, having just come out of doing contacts, it makes sense to try and utilize a double free in some sort of manner. Let's see what we have to work with.
+
+##### Leaking libc
