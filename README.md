@@ -87,3 +87,20 @@ void main() {
 ```
 
 </details>
+The first thing we notice is a use-after-free. In the `serve` method
+```C
+void serve(struct shop* shop) {
+    printf("This customer looks...\n");
+    size_t i = get();
+    if (i <= 15 && shop->cakes[i] != NULL) {
+        printf("The customer looks really happy with %s",
+                shop->cakes[i]->name);
+        shop->money += shop->cakes[i]->price;
+        free(shop->cakes[i]);
+        shop->customers--;
+    } else {
+        printf("Opps!\n");
+    }
+}
+```
+we see that the cake we serve is freed but we still have access to it in the cakes array stored in our shop struct.
