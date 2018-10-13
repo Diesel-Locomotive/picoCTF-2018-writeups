@@ -88,6 +88,7 @@ void main() {
 
 </details>
 The first thing we notice is a use-after-free. In the `serve` method
+
 ```C
 void serve(struct shop* shop) {
     printf("This customer looks...\n");
@@ -103,4 +104,5 @@ void serve(struct shop* shop) {
     }
 }
 ```
+
 we see that the cake we serve is freed but we still have access to it in the cakes array stored in our shop struct.
