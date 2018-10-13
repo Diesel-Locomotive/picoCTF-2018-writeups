@@ -89,6 +89,7 @@ void main() {
 ```
 
 </details>
+
 The first thing we notice is a use-after-free. In the `serve` method
 
 ```C
@@ -110,3 +111,5 @@ void serve(struct shop* shop) {
 we see that the cake we serve is freed but we still have access to it in the cakes array stored in our shop struct. How can we exploit this? Well, having just come out of doing contacts, it makes sense to try and utilize a double free in some sort of manner. Let's see what we have to work with.
 
 ##### Leaking libc
+Thankfully the problem gives us an inspect cake functionality, and this clearly motivates us to leak something: namely libc so that we can defeat ASLR. Trying what we did in `contacts` doesn't work: If we create two cakes, free the first, then inspect the first, we don't get anything interesting. This is because the cakes are being allocated fastbin chunks, so simply inspecting the freed fastbin chunk won't help us leak anything (in `contacts` we had the ability to inspect a freed smallbin). In fact, looking at the `make` method, cakes only malloc 16 bytes of data making overwriting by tricking malloc a little difficult.
+This is where we get creative. Notice that each action we take has a chance of incrementing the number of customers we have. Moreover, looking at the store pointer (which has constant location in memory) we see that the structure is such that the total money made is stored in the first qword and the total customers waiting is stored in the second qword, and that the following memory stores all our cake pointers. This means that provided we wait for the appropriate amount of customers, we can fake a valid fastbin chunk header at the store address, and use a double free to trick malloc into letting us overwrite the first two cake pointer.
