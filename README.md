@@ -268,6 +268,12 @@ The one point of interest is that pwntools ELF class got the wrong offset for \_
 ### Dog or Frog
 The goal of this problem is to transform the image of trixi the dog into one that still looks very similar to the original, but get's falsely identified by a treefrog using the model they provided. Like any other problem I don't know how to approach I am going to try to find a blog post and a pre-existing library. I ended up finding [this](http://everettsprojects.com/2018/01/30/mnist-adversarial-examples.html) blog post and the [cleverhans](https://github.com/tensorflow/cleverhans) library. Simply following the tutorial and the using the provided solution stub we create our own example as
 ```python
+import numpy as np
+
+from cleverhans.attacks import BasicIterativeMethod
+from cleverhans.utils_keras import KerasModelWrapper
+
+from keras import backend
 ...
 def labels_to_output_layer(labels):
 	layers = np.zeros((len(labels), 1000))
