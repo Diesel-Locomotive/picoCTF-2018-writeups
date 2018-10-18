@@ -134,3 +134,5 @@ This is our double free, and it makes the fastbin list look like `address(cake 0
 make cake (price = 0x6030e0) -> make cake -> make cake -> make cake (price = 0x6030e0, name = p64(0x6030c0))
 ```
 (here `p64` is a function that packs the address into a string). Finally calling inspect on cake 1 outputs stdout's GOT entry as the price.
+
+##### Overwriting __malloc_hook
