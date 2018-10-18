@@ -1,5 +1,7 @@
 # picoCTF 2018 Writeups
 ## Table of Contents
+### General Problems
+* [Dog or Frog](#Dog_or_Frog)
 ### Binary Exploitation
 * [Cake](#Cake)
 
@@ -262,3 +264,5 @@ if __name__ == "__main__":
 	exploit()
 ```
 The one point of interest is that pwntools ELF class got the wrong offset for \_\_malloc\_hook, and the error term happened to also be the same as the error in offset for the one gadget's given by david942j's [one gadget tool](https://github.com/david942j/one_gadget), which explains adding the term `(0x3a5260 - libc.symbols["__malloc_hook"])` to the one gadget address.
+
+### Dog or Frog
