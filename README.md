@@ -608,7 +608,7 @@ class Attacker:
 
 	@staticmethod
 	def paddingoracle():
-		secret = "picoCTF{g0_@g3nt006!_354053"
+		secret = "picoCTF{"
 		# find length of secret
 		secretlength  = 29#Attacker.getsecretsize()
 		# for each unknown byte in secret
