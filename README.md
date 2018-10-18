@@ -649,7 +649,7 @@ class Attacker:
 print Attacker.paddingoracle()
 ```
 
-### Circuit123
+### circuit123
 We begin by trying to understand the provided decrypt.py file, in particular the `verify` function. The source is:
 
 ```python
@@ -723,7 +723,7 @@ print(n)
 Our script outputs the key `219465169949186335766963147192904921805` after a few seconds, and running `$ ./decrypt.py 219465169949186335766963147192904921805 map2.txt` gives us our flag.
 
 ### be-quick-or-be-dead-3
-The hints suggests that we will have to optimize the key calculation so that it completes before the timer goes off. We disassembled the provided binary using IDA (though any disassebler would work fine) and examined the `calulate_key` routine. We found that it calls `calc(102219)`, where calc is a recursive function. Examining the source of `calc` showed that it is equivalent to the following psuedocode:
+The hints suggests that we will have to optimize the key calculation so that it completes before the timer goes off. We disassembled the provided binary using IDA (though any disassembler would work fine) and examined the `calulate_key` routine. We found that it calls `calc(102219)`, where calc is a recursive function. Examining the source of `calc` showed that it is equivalent to the following psuedocode:
 
 ```C
 unsigned int calc(unsigned int n) {
