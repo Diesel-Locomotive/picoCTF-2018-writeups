@@ -1,7 +1,7 @@
 # picoCTF 2018 Writeups
 ## Table of Contents
 ### General Problems
-* [Dog or Frog](#Dog_or_Frog)
+* [Dog or Frog](#Dog-or-Frog)
 ### Binary Exploitation
 * [Cake](#Cake)
 
