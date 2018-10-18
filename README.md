@@ -6,6 +6,9 @@
 * [James Brahm Returns](#james-brahm-returns)
 ### Binary Exploitation
 * [Cake](#cake)
+### Reversing
+* [circuit123](#circuit123)
+* [be-quick-or-be-dead-3](#be-quick-or-be-dead-3)
 
 ## Problems
 ### Cake
@@ -40,8 +43,7 @@ void make(struct shop* shop) {
     printf("Made cake %d\nName> ", i);
     fgets_eat(shop->cakes[i]->name, 8, stdin);
 
-    printf("Price> ");
-    shop->cakes[i]->price = get();
+    printf("Price> "); shop->cakes[i]->price = get();
 }
 
 void inspect(struct shop* shop) {
@@ -646,3 +648,132 @@ class Attacker:
 
 print Attacker.paddingoracle()
 ```
+
+### Circuit123
+We begin by trying to understand the provided decrypt.py file, in particular the `verify` function. The source is:
+
+```python
+def verify(x, chalbox):
+    length, gates, check = chalbox
+    b = [(x >> i) & 1 for i in range(length)]
+    for name, args in gates:
+        if name == 'true':
+            b.append(1)
+        else:
+            u1 = b[args[0][0]] ^ args[0][1]
+            u2 = b[args[1][0]] ^ args[1][1]
+            if name == 'or':
+                b.append(u1 | u2)
+            elif name == 'xor':
+                b.append(u1 ^ u2)
+    return b[check[0]] ^ check[1]
+```
+
+We can see that the key, `x`, is converted into a list of its binary digits, which are used to initialize the list `b`. We then iterate through a list of "gates" from the map file, each of which will represent either an operation or a constant `1` value. Each operation references two indicies in the `b` list and can optionally negate either of these values before performing an or or xor. The result is then appended to the `b` array, and later gates can then reference this result. Our goal is to ensure that the value at index `check[0]` of `b` returns `1` when xor'ed with `check[1]`.
+
+As suggested by the hint, we can represent our problem as series of constraints and use the z3 library to find a solution for us. The library makes this quite simple:
+
+```python
+from z3 import *
+
+# read in and parse map (have to remove L postfix for python 3)
+s = open('map2.txt').read()
+i = s.find('L')
+s = s[:i] + s[i+1:]
+cipher, chalbox = eval(s)
+length, gates, check = chalbox
+
+s = Solver()
+I = IntSort()
+B = BoolSort()
+A = Array('A', I, B)
+
+# add constraints for gates
+i = length
+for name, args in gates:
+    if name == 'true':
+        s.add(A[i] == True)
+    else:
+        u1 = Xor(A[args[0][0]], args[0][1])
+        u2 = Xor(A[args[1][0]], args[1][1])
+        if name == 'or':
+            s.add(A[i] == Or(u1, u2))
+        elif name == 'xor':
+            s.add(A[i] == Xor(u1, u2))
+    i += 1
+
+# add constraint to satisfy final check
+s.add(Xor(A[check[0]], check[1]))
+
+# solve constraints
+s.check()
+m = s.model()
+f = m.get_interp(A)
+
+# convert result to decimal key
+v = [0] * (len(f.as_list()) - 1)
+for i, b in f.as_list()[:-1]:
+    v[i.as_long()] = int(is_true(b))
+n = 0
+for i in range(length):
+    n += v[i] << i
+print(n)
+```
+
+Our script outputs the key `219465169949186335766963147192904921805` after a few seconds, and running `$ ./decrypt.py 219465169949186335766963147192904921805 map2.txt` gives us our flag.
+
+### be-quick-or-be-dead-3
+The hints suggests that we will have to optimize the key calculation so that it completes before the timer goes off. We disassembled the provided binary using IDA (though any disassebler would work fine) and examined the `calulate_key` routine. We found that it calls `calc(102219)`, where calc is a recursive function. Examining the source of `calc` showed that it is equivalent to the following psuedocode:
+
+```C
+unsigned int calc(unsigned int n) {
+   if (n > 4) {
+       return calc(n-5)*4660+calc(n-1)-calc(n-2)+calc(n-3)-calc(n-4);
+   } else {
+       return n * n + 9029;
+   }
+}
+```
+
+We can optimize this routine with some simple dynamic programming, which makes the computation of `calc(102219)` almost instantenous. We memoize the `calc` function by saving already computed values of `calc(n)`:
+
+```C
+unsigned int cache[102219];
+char hit[102219];
+
+unsigned int calc(unsigned int n) {
+    if (hit[n]) {
+        return cache[n];
+    } else {
+        if (n > 4) {
+            unsigned int m = calc(n-5)*4660+calc(n-1)-calc(n-2)+calc(n-3)-calc(n-4);
+            cache[n] = m;
+            hit[n] = 1;
+            return m;
+        } else {
+            return n * n + 9029;
+        }
+    }
+}
+
+void main(int argc, char* argv[]) {
+    memset(hit, 0, sizeof(hit));
+    unsigned int n = strtol(argv[1], NULL, 10);
+    printf("%u", calc(n));
+}
+```
+
+The following program run with the argument `102219` outputs the key `797760575`.
+
+The final step is to patch the `be-quick-or-be-dead-3` binary to find this key quickly. We can use gdb for this purpose. We start a gdb session and disable the timer for convenience before beginning. We can do this by telling gdb to skip the `set_timer` call in `main` with the following commands:
+
+```gdb
+break *0x00000000004008c4
+commands
+  jump *0x00000000004008c9
+end
+```
+
+Next, we set a breakpoint in the `calulate_key` routine before `calc` is called with `break *0x000000000040079b`. We then set our return value to the key we computed with `set $eax=797760575`. We then jump the the end of `calulate_key` with `jump *0x00000000004007a0` and continue execution. The program then outputs the flag.
+
+
