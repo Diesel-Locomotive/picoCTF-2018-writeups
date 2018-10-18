@@ -610,7 +610,7 @@ class Attacker:
 	def paddingoracle():
 		secret = "picoCTF{"
 		# find length of secret
-		secretlength  = 29#Attacker.getsecretsize()
+		secretlength  = Attacker.getsecretsize()
 		# for each unknown byte in secret
 		for c in range(len(secret) + 1, secretlength+1):
 			trial = 0
