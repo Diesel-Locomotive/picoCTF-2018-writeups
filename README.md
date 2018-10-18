@@ -488,8 +488,8 @@ Down with the Soviets,
 ```
 
 </details>
-Googling revalent attacks we find that the POODLE attack is what we are looking for and we find
-[this](https://www.voidsecurity.in/2014/12/the-padding-oracle-in-poodle.html) amazing blog post. Adapting the code to our specific scenario, we are able to perform the attacks. The only major difficulty came in adjusting offsets, since, unlike in the blog's scenario, we do not fully control the prefix and suffix of the message following the flag. The flag is also wrapped in static text that we do not control.
+
+Googling revalent attacks we find that the POODLE attack is what we are looking for and we find [this](https://www.voidsecurity.in/2014/12/the-padding-oracle-in-poodle.html) amazing blog post. Adapting the code to our specific scenario, we are able to perform the attacks. The only major difficulty came in adjusting offsets, since, unlike in the blog's scenario, we do not fully control the prefix and suffix of the message following the flag. The flag is also wrapped in static text that we do not control.
 
 ##### Full Exploit
 Below is the full exploit from the [voidsecurity blog post](https://www.voidsecurity.in/2014/12/the-padding-oracle-in-poodle.html) adapted to our problem.
