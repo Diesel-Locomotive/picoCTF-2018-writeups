@@ -5,9 +5,9 @@
 ### Binary Exploitation
 * [Cake](#Cake)
 
-## Problems
-### Cake
-##### Understanding the problem
+##Problems
+###Cake
+#####Understanding the problem
 For this problem we are given a binary file and a libc file. The first step to solving this problem is to reverse the binary file and try to get an understanding of what is going on. Upon doing this, we get the following C pseudocode of what's going on:
 
 <details><summary>Cake Source Pseudocode</summary>
@@ -265,4 +265,4 @@ if __name__ == "__main__":
 ```
 The one point of interest is that pwntools ELF class got the wrong offset for \_\_malloc\_hook, and the error term happened to also be the same as the error in offset for the one gadget's given by david942j's [one gadget tool](https://github.com/david942j/one_gadget), which explains adding the term `(0x3a5260 - libc.symbols["__malloc_hook"])` to the one gadget address.
 
-### Dog or Frog
+###Dog or Frog
