@@ -493,3 +493,156 @@ Googling revalent attacks we find that the POODLE attack is what we are looking 
 
 ##### Full Exploit
 Below is the full exploit from the [voidsecurity blog post](https://www.voidsecurity.in/2014/12/the-padding-oracle-in-poodle.html) adapted to our problem.
+
+```python
+import os
+import struct
+from Crypto.Cipher import AES
+from Crypto.Hash import HMAC
+from Crypto.Hash import SHA
+
+BLOCK_SIZE  = 16
+HMAC_SIZE   = 20
+
+#Message format
+message = """Agent,
+Greetings. My situation report is as follows:
+{0}
+My agent identifying code is: {1}.
+Down with the Soviets,
+006
+"""
+
+extra_prefix_count = 53 + 31
+extra_suffix_count = 29
+
+
+################### Netcat #######################
+import socket
+ 
+class Netcat:
+	def __init__(self, ip, port):
+		self.buff = ""
+		self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.socket.connect((ip, port))
+
+	def read(self, length = 1024):
+		return self.socket.recv(length)
+ 	
+	def read2(self, data):
+		while not data in self.buff:
+			self.buff += self.socket.recv(1024)
+
+		pos = self.buff.find(data)
+		rval = self.buff[:pos + len(data)]
+		self.buff = self.buff[pos + len(data):]
+ 
+		return rval
+
+	def write(self, data):
+		self.socket.send(data)
+	def close(self):
+		self.socket.close()
+
+##################################################
+
+class Helper:
+
+	@staticmethod
+	def lsb(string): return ord(string[-1])
+	
+class Client:
+	############ Custom Encryption ################
+	@staticmethod
+	def encrypt(prefix = "", suffix = ""):
+		read = ""
+		nc = Netcat("2018shell2.picoctf.com", 14263)
+		while "Welcome" not in read:
+			read = nc.read()
+		while "Select" not in read:
+			read = nc.read()
+		nc.write("e\n")
+		while "Please" not in read:
+			read = nc.read()
+		nc.write(prefix + "\n")
+		while "Anything" not in read:
+			read = nc.read()
+		nc.write(suffix + "\n")
+		while "encrypted" not in read:
+			read = nc.read()
+		return read[len("encrypted: "):].decode('hex')
+
+class Server:
+	############# Custom Poracle #################
+	@staticmethod	
+	def decrypt(string):
+		read = ""
+		nc = Netcat("2018shell2.picoctf.com", 14263)
+		while "Welcome" not in read:
+			read = nc.read()
+		while "Select" not in read:
+			read = nc.read()
+		nc.write("s\n")
+		while "Please" not in read:
+			read = nc.read()
+		nc.write(string.encode('hex') + "\n")
+		response = nc.read()
+		if "Successful" not in response:
+			return False
+		return True
+
+class Attacker:
+
+	@staticmethod
+	def getsecretsize():
+		# set reference length for boundary check
+		baselen = len(Client.encrypt())
+		for s in range(1, BLOCK_SIZE+1):
+			prefix = chr(0x42) * s
+			trial  = len(Client.encrypt(prefix))
+			# check if the block boundary is crossed
+			if trial > baselen: break
+		return baselen - BLOCK_SIZE - HMAC_SIZE - s - extra_prefix_count - extra_suffix_count
+
+	@staticmethod
+	def paddingoracle():
+		secret = "picoCTF{g0_@g3nt006!_354053"
+		# find length of secret
+		secretlength  = 29#Attacker.getsecretsize()
+		# for each unknown byte in secret
+		for c in range(len(secret) + 1, secretlength+1):
+			trial = 0
+			# bruteforce until valid padding
+			while True:
+				# align prefix such that first unknown byte is the last byte of a block
+				prefix_count = (BLOCK_SIZE - ((c + extra_prefix_count) % BLOCK_SIZE))
+				prefix = chr(0x42)*prefix_count
+
+				# align to block size boundary by padding suffix
+				suffix = chr(0x43) * (BLOCK_SIZE - (len(prefix) + extra_prefix_count + extra_suffix_count + secretlength + HMAC_SIZE) % BLOCK_SIZE)
+				# intercept and get client request
+				clientreq = Client.encrypt(prefix, suffix)
+				# remove padding bytes
+				clientreq = clientreq[:-BLOCK_SIZE]
+				blockindex = (len(prefix) + extra_prefix_count + c)/BLOCK_SIZE - 1
+				# fetch the hash block
+				hashblock = clientreq[-BLOCK_SIZE:] 
+				# block to decrypt
+				currblock = clientreq[BLOCK_SIZE*(blockindex+1):BLOCK_SIZE*(blockindex+2)]
+				# block previous to decryption block
+				prevblock = clientreq[BLOCK_SIZE*blockindex: BLOCK_SIZE*(blockindex+1)]
+				# prepare payload
+				payload = clientreq + currblock
+				trial += 1
+				# send modified request to server and check server response
+				if Server.decrypt(payload):
+					# on valid padding
+					s = chr(0x10 ^ Helper.lsb(prevblock) ^ Helper.lsb(hashblock))
+					secret += s
+					print "Byte[%02d] = %s recovered in %04d tries = %s"%(c,s,trial,secret) 
+					break
+
+		return secret
+
+print Attacker.paddingoracle()
+```
